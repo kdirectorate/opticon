@@ -1,0 +1,82 @@
+#!/bin/bash
+
+DEB_ISO=debian-12.5.0-amd64-netinst.iso
+DEB_ISO_URL=https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/${DEB_ISO}
+ISO_DIR=~/.local/opticon/opticon/isos
+ISO=${ISO_DIR}/${DEB_ISO}
+IMG_DIR=~/.local/opticon/images
+ENABLEKVM=-enable-kvm
+
+# Setup the environment if needed.
+mkdir -p $ISO_DIR
+mkdir -p $IMG_DIR
+
+if [ ! -f "$ISO" ]; then
+    curl -sSL $DEB_ISO_URL > "$ISO"
+fi
+
+function create() {
+    USAGE="Usage: create [-f|--filename][-s|--size] imagename"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -f | --filename)
+                shift
+                FILENAME="${IMG_DIR}/$1.img"
+                shift
+                ;;
+            -s | --size)
+                shift
+                SIZE="$1"
+                shift
+                ;;
+            help)
+                echo $USAGE
+                exit 1    
+                ;;       
+            *)
+                echo "Unknown parameter $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$FILENAME" ]; then
+        echo "create [-f|--filename] is required."
+        exit 1
+    fi
+    if [ -z "$SIZE" ]; then
+        echo "create [-s|--size] is required."
+        exit 1
+    fi
+
+    qemu-img create -f qcow2 ${FILENAME} ${SIZE}
+    qemu-system-x86_64 ${ENABLEKVM} -hda ${FILENAME} -cdrom ${ISO} -boot d -m 1024
+
+}
+
+
+COMMAND=$1
+shift
+
+# Process command and its associated parameters and arguments
+case "$COMMAND" in
+    start)
+        # Start the service or container
+        docker-compose up -d $XRAY
+        ;;
+    stop)
+        # Stop the service or container
+        docker-compose down $XRAY
+        ;;
+    restart)
+        # Restart the service or container
+        docker-compose restart $XRAY
+        ;;
+    create)
+        create $*
+        ;;
+    *)
+        echo "Unknown command: $COMMAND"
+        exit 1
+        ;;
+esac
